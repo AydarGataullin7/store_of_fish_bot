@@ -1,98 +1,108 @@
 import requests
 
 
-def get_headers(token):
+def get_headers(strapi_token):
     return {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"Bearer {strapi_token}",
         "Content-Type": "application/json",
     }
 
 
-def get_products(strapi_url, token):
+def get_products(strapi_url, strapi_token):
     url = f'{strapi_url}/api/products'
-    response = requests.get(url, headers=get_headers(token))
-    response.raise_for_status()
-    return response.json()['data']
+    strapi_response = requests.get(url, headers=get_headers(strapi_token))
+    strapi_response.raise_for_status()
+    return strapi_response.json()['data']
 
 
-def get_product(strapi_url, token, document_id):
+def get_product(strapi_url, strapi_token, document_id):
     url = f'{strapi_url}/api/products/{document_id}'
-    params = {'populate': 'picture'}
-    response = requests.get(url, headers=get_headers(token), params=params)
-    response.raise_for_status()
-    return response.json()['data']
+    query_params = {'populate': 'picture'}
+    strapi_response = requests.get(
+        url, headers=get_headers(strapi_token), params=query_params
+    )
+    strapi_response.raise_for_status()
+    return strapi_response.json()['data']
 
 
 def get_image_bytes(image_url):
-    response = requests.get(image_url)
-    response.raise_for_status()
-    return response.content
+    image_response = requests.get(image_url)
+    image_response.raise_for_status()
+    return image_response.content
 
 
-def get_or_create_cart(strapi_url, token, chat_id):
+def get_or_create_cart(strapi_url, strapi_token, chat_id):
     url = f'{strapi_url}/api/carts'
-    response = requests.get(
+    strapi_response = requests.get(
         url,
-        headers=get_headers(token),
+        headers=get_headers(strapi_token),
         params={'filters[telegram_id][$eq]': chat_id}
     )
-    response.raise_for_status()
-    carts = response.json()['data']
-    if carts:
-        return carts[0]
-    data = {"data": {"telegram_id": chat_id}}
-    response = requests.post(url, headers=get_headers(token), json=data)
-    response.raise_for_status()
-    return response.json()['data']
+    strapi_response.raise_for_status()
+    found_carts = strapi_response.json()['data']
+    if found_carts:
+        return found_carts[0]
+    request_body = {"data": {"telegram_id": chat_id}}
+    strapi_response = requests.post(
+        url, headers=get_headers(strapi_token), json=request_body
+    )
+    strapi_response.raise_for_status()
+    return strapi_response.json()['data']
 
 
-def add_to_cart(strapi_url, token, cart_document_id, product_document_id):
+def add_to_cart(strapi_url, strapi_token, cart_document_id, product_document_id):
     url = f'{strapi_url}/api/cart-items'
-    data = {
+    request_body = {
         "data": {
             "quantity": 1,
             "cart": cart_document_id,
             "product": product_document_id,
         }
     }
-    response = requests.post(url, headers=get_headers(token), json=data)
-    response.raise_for_status()
-    return response.json()
+    strapi_response = requests.post(
+        url, headers=get_headers(strapi_token), json=request_body
+    )
+    strapi_response.raise_for_status()
+    return strapi_response.json()
 
 
-def get_cart(strapi_url, token, chat_id):
+def get_cart(strapi_url, strapi_token, chat_id):
     url = f'{strapi_url}/api/carts'
-    response = requests.get(
+    strapi_response = requests.get(
         url,
-        headers=get_headers(token),
+        headers=get_headers(strapi_token),
         params={'filters[telegram_id][$eq]': chat_id}
     )
-    response.raise_for_status()
-    carts = response.json()['data']
-    if not carts:
+    strapi_response.raise_for_status()
+    found_carts = strapi_response.json()['data']
+    if not found_carts:
         return None
-    cart_document_id = carts[0]['documentId']
+    cart_document_id = found_carts[0]['documentId']
     url = f'{strapi_url}/api/carts/{cart_document_id}'
-    params = {'populate': 'cart_items.product'}
-    response = requests.get(url, headers=get_headers(token), params=params)
-    response.raise_for_status()
-    return response.json()['data']
+    query_params = {'populate': 'cart_items.product'}
+    strapi_response = requests.get(
+        url, headers=get_headers(strapi_token), params=query_params
+    )
+    strapi_response.raise_for_status()
+    return strapi_response.json()['data']
 
 
-def delete_cart_item(strapi_url, token, cart_item_document_id):
+def delete_cart_item(strapi_url, strapi_token, cart_item_document_id):
     url = f'{strapi_url}/api/cart-items/{cart_item_document_id}'
-    response = requests.delete(url, headers=get_headers(token))
-    response.raise_for_status()
+    strapi_response = requests.delete(url, headers=get_headers(strapi_token))
+    strapi_response.raise_for_status()
 
 
-def create_client(strapi_url, token, email, chat_id):
+def create_client(strapi_url, strapi_token, email, chat_id):
     url = f'{strapi_url}/api/clients'
-    data = {
+    request_body = {
         "data": {
             "email": email,
             "telegram_id": chat_id,
         }
     }
-    response = requests.post(url, headers=get_headers(token), json=data)
-    response.raise_for_status()
-    return response.json()
+    strapi_response = requests.post(
+        url, headers=get_headers(strapi_token), json=request_body
+    )
+    strapi_response.raise_for_status()
+    return strapi_response.json()

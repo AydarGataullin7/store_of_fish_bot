@@ -17,9 +17,9 @@ redis_password = None
 
 
 def start(update, context):
-    products = strapi_api.get_products(strapi_url, strapi_token)
+    product_list = strapi_api.get_products(strapi_url, strapi_token)
     keyboard = []
-    for product in products:
+    for product in product_list:
         button = InlineKeyboardButton(product['name'], callback_data=product['documentId'])
         keyboard.append([button])
     keyboard.append([InlineKeyboardButton('Моя корзина', callback_data='my_cart')])
@@ -69,11 +69,11 @@ def handle_description(update, context):
         cart = strapi_api.get_cart(strapi_url, strapi_token, chat_id)
         text = "Ваша корзина: \n\n"
         total = 0
-        for item in cart['cart_items']:
-            product = item['product']
+        for cart_item in cart['cart_items']:
+            product = cart_item['product']
             name = product['name']
             price = product['price']
-            quantity = item['quantity']
+            quantity = cart_item['quantity']
             subtotal = price * quantity
             total += subtotal
             text += f"- {name} - {quantity} x {price} руб. \n"
@@ -84,7 +84,7 @@ def handle_description(update, context):
 
 
 def handle_users_reply(update, context):
-    db = get_database_connection()
+    redis_conn = get_database_connection()
     if update.message:
         user_reply = update.message.text
         chat_id = update.message.chat_id
@@ -96,7 +96,7 @@ def handle_users_reply(update, context):
     if user_reply == '/start':
         user_state = 'START'
     else:
-        user_state = db.get(chat_id).decode("utf-8")
+        user_state = redis_conn.get(chat_id).decode("utf-8")
 
     states_functions = {
         'START': start,
@@ -108,9 +108,9 @@ def handle_users_reply(update, context):
     state_handler = states_functions[user_state]
     try:
         next_state = state_handler(update, context)
-        db.set(chat_id, next_state)
-    except Exception as err:
-        print(err)
+        redis_conn.set(chat_id, next_state)
+    except Exception as error:
+        print(error)
 
 
 def handle_cart(update, context):
@@ -141,18 +141,18 @@ def handle_cart(update, context):
     keyboard = []
     total = 0
 
-    for item in cart['cart_items']:
-        product = item['product']
+    for cart_item in cart['cart_items']:
+        product = cart_item['product']
         name = product['name']
         price = product['price']
-        quantity = item['quantity']
+        quantity = cart_item['quantity']
         subtotal = price * quantity
         total += subtotal
         text += f"- {name} - {quantity} x {price} руб.\n"
 
         button = InlineKeyboardButton(
             f'Удалить {name}',
-            callback_data=f'remove_{item["documentId"]}'
+            callback_data=f'remove_{cart_item["documentId"]}'
         )
         keyboard.append([button])
 
@@ -186,11 +186,11 @@ if __name__ == '__main__':
     load_dotenv()
     strapi_url = os.getenv('STRAPI_URL')
     strapi_token = os.getenv('STRAPI_TOKEN')
-    token = os.getenv("TELEGRAM_TOKEN")
+    telegram_token = os.getenv("TELEGRAM_TOKEN")
     redis_host = os.getenv("DATABASE_HOST")
     redis_port = os.getenv("DATABASE_PORT")
     redis_password = os.getenv("DATABASE_PASSWORD")
-    updater = Updater(token)
+    updater = Updater(telegram_token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
     dispatcher.add_handler(MessageHandler(Filters.text, handle_users_reply))
