@@ -28,9 +28,10 @@ def handle_menu(update, context):
     document_id = update.callback_query.data
     if document_id == 'my_cart':
         return handle_cart(update, context)
-    url = f'{strapi_url}/api/products/{document_id}?populate=picture'
+    url = f'{strapi_url}/api/products/{document_id}'
+    params = {'populate': 'picture'}
     headers = {"Authorization": f"Bearer {os.getenv('STRAPI_TOKEN')}"}
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, params=params)
     product = response.json()['data']
     picture_url = product['picture']['url']
     image_url = f'{strapi_url}{picture_url}'
@@ -99,8 +100,9 @@ def handle_description(update, context):
         response = requests.get(url, headers=headers, params={'filters[telegram_id][$eq]': chat_id})
         carts = response.json()['data']
         cart_document_id = carts[0]['documentId']
-        url = f'{strapi_url}/api/carts/{cart_document_id}?populate=cart_items.product'
-        response = requests.get(url, headers=headers)
+        url = f'{strapi_url}/api/carts/{cart_document_id}'
+        params = {'populate': 'cart_items.product'}
+        response = requests.get(url, headers=headers, params=params)
         cart = response.json()['data']
         text = "Ваша корзина: \n\n"
         total = 0
@@ -179,8 +181,9 @@ def handle_cart(update, context):
         return "HANDLE_CART"
 
     cart_document_id = carts[0]['documentId']
-    url = f'{strapi_url}/api/carts/{cart_document_id}?populate=cart_items.product'
-    response = requests.get(url, headers=headers)
+    url = f'{strapi_url}/api/carts/{cart_document_id}'
+    params = {'populate': 'cart_items.product'}
+    response = requests.get(url, headers=headers, params=params)
     cart = response.json()['data']
 
     text = "Ваша корзина:\n\n"
