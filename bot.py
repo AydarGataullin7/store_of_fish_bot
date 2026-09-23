@@ -3,8 +3,6 @@ import redis
 from dotenv import load_dotenv
 import requests
 
-load_dotenv()
-
 from telegram.ext import Filters, Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -243,6 +241,7 @@ def get_database_connection():
 
 
 if __name__ == '__main__':
+    load_dotenv()
     token = os.getenv("TELEGRAM_TOKEN")
     updater = Updater(token)
     dispatcher = updater.dispatcher
