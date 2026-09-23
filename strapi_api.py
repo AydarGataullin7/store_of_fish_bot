@@ -1,24 +1,23 @@
-import os
 import requests
 
 
-def get_headers():
+def get_headers(token):
     return {
-        "Authorization": f"Bearer {os.getenv('STRAPI_TOKEN')}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
 
 
-def get_products(strapi_url):
+def get_products(strapi_url, token):
     url = f'{strapi_url}/api/products'
-    response = requests.get(url, headers=get_headers())
+    response = requests.get(url, headers=get_headers(token))
     return response.json()['data']
 
 
-def get_product(strapi_url, document_id):
+def get_product(strapi_url, token, document_id):
     url = f'{strapi_url}/api/products/{document_id}'
     params = {'populate': 'picture'}
-    response = requests.get(url, headers=get_headers(), params=params)
+    response = requests.get(url, headers=get_headers(token), params=params)
     return response.json()['data']
 
 
@@ -27,22 +26,22 @@ def get_image_bytes(image_url):
     return response.content
 
 
-def get_or_create_cart(strapi_url, chat_id):
+def get_or_create_cart(strapi_url, token, chat_id):
     url = f'{strapi_url}/api/carts'
     response = requests.get(
         url,
-        headers=get_headers(),
+        headers=get_headers(token),
         params={'filters[telegram_id][$eq]': chat_id}
     )
     carts = response.json()['data']
     if carts:
         return carts[0]
     data = {"data": {"telegram_id": chat_id}}
-    response = requests.post(url, headers=get_headers(), json=data)
+    response = requests.post(url, headers=get_headers(token), json=data)
     return response.json()['data']
 
 
-def add_to_cart(strapi_url, cart_document_id, product_document_id):
+def add_to_cart(strapi_url, token, cart_document_id, product_document_id):
     url = f'{strapi_url}/api/cart-items'
     data = {
         "data": {
@@ -51,15 +50,15 @@ def add_to_cart(strapi_url, cart_document_id, product_document_id):
             "product": product_document_id,
         }
     }
-    response = requests.post(url, headers=get_headers(), json=data)
+    response = requests.post(url, headers=get_headers(token), json=data)
     return response.json()
 
 
-def get_cart(strapi_url, chat_id):
+def get_cart(strapi_url, token, chat_id):
     url = f'{strapi_url}/api/carts'
     response = requests.get(
         url,
-        headers=get_headers(),
+        headers=get_headers(token),
         params={'filters[telegram_id][$eq]': chat_id}
     )
     carts = response.json()['data']
@@ -68,16 +67,16 @@ def get_cart(strapi_url, chat_id):
     cart_document_id = carts[0]['documentId']
     url = f'{strapi_url}/api/carts/{cart_document_id}'
     params = {'populate': 'cart_items.product'}
-    response = requests.get(url, headers=get_headers(), params=params)
+    response = requests.get(url, headers=get_headers(token), params=params)
     return response.json()['data']
 
 
-def delete_cart_item(strapi_url, cart_item_document_id):
+def delete_cart_item(strapi_url, token, cart_item_document_id):
     url = f'{strapi_url}/api/cart-items/{cart_item_document_id}'
-    requests.delete(url, headers=get_headers())
+    requests.delete(url, headers=get_headers(token))
 
 
-def create_client(strapi_url, email, chat_id):
+def create_client(strapi_url, token, email, chat_id):
     url = f'{strapi_url}/api/clients'
     data = {
         "data": {
@@ -85,5 +84,5 @@ def create_client(strapi_url, email, chat_id):
             "telegram_id": chat_id,
         }
     }
-    response = requests.post(url, headers=get_headers(), json=data)
+    response = requests.post(url, headers=get_headers(token), json=data)
     return response.json()

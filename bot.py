@@ -10,10 +10,14 @@ import strapi_api
 
 _database = None
 strapi_url = None
+strapi_token = None
+redis_host = None
+redis_port = None
+redis_password = None
 
 
 def start(update, context):
-    products = strapi_api.get_products(strapi_url)
+    products = strapi_api.get_products(strapi_url, strapi_token)
     keyboard = []
     for product in products:
         button = InlineKeyboardButton(product['name'], callback_data=product['documentId'])
@@ -28,7 +32,7 @@ def handle_menu(update, context):
     document_id = update.callback_query.data
     if document_id == 'my_cart':
         return handle_cart(update, context)
-    product = strapi_api.get_product(strapi_url, document_id)
+    product = strapi_api.get_product(strapi_url, strapi_token, document_id)
     picture_url = product['picture']['url']
     image_url = f'{strapi_url}{picture_url}'
     image_bytes = strapi_api.get_image_bytes(image_url)
@@ -56,13 +60,13 @@ def handle_description(update, context):
         start(update, context)
     elif callback_data.startswith('add_to_cart_'):
         product_document_id = callback_data.replace('add_to_cart_', '')
-        cart = strapi_api.get_or_create_cart(strapi_url, chat_id)
-        strapi_api.add_to_cart(strapi_url, cart['documentId'], product_document_id)
+        cart = strapi_api.get_or_create_cart(strapi_url, strapi_token, chat_id)
+        strapi_api.add_to_cart(strapi_url, strapi_token, cart['documentId'], product_document_id)
         update.callback_query.answer()
         update.callback_query.message.reply_text("Товар добавлен в корзину")
         return "HANDLE_DESCRIPTION"
     elif callback_data == 'my_cart':
-        cart = strapi_api.get_cart(strapi_url, chat_id)
+        cart = strapi_api.get_cart(strapi_url, strapi_token, chat_id)
         text = "Ваша корзина: \n\n"
         total = 0
         for item in cart['cart_items']:
@@ -123,10 +127,10 @@ def handle_cart(update, context):
         return "HANDLE_MENU"
     elif callback_data.startswith('remove_'):
         cart_item_document_id = callback_data.replace('remove_', '')
-        strapi_api.delete_cart_item(strapi_url, cart_item_document_id)
+        strapi_api.delete_cart_item(strapi_url, strapi_token, cart_item_document_id)
         update.callback_query.message.delete()
 
-    cart = strapi_api.get_cart(strapi_url, chat_id)
+    cart = strapi_api.get_cart(strapi_url, strapi_token, chat_id)
 
     if not cart or not cart['cart_items']:
         update.callback_query.answer()
@@ -166,7 +170,7 @@ def handle_cart(update, context):
 def handle_email(update, context):
     email = update.message.text
     chat_id = update.message.chat_id
-    strapi_api.create_client(strapi_url, email, chat_id)
+    strapi_api.create_client(strapi_url, strapi_token, email, chat_id)
     print("EMAIL:", email)
     update.message.reply_text(f'Спасибо! Ваш email: {email}')
     return "START"
@@ -175,17 +179,18 @@ def handle_email(update, context):
 def get_database_connection():
     global _database
     if _database is None:
-        database_password = os.getenv("DATABASE_PASSWORD")
-        database_host = os.getenv("DATABASE_HOST")
-        database_port = os.getenv("DATABASE_PORT")
-        _database = redis.Redis(host=database_host, port=database_port, password=database_password)
+        _database = redis.Redis(host=redis_host, port=redis_port, password=redis_password)
     return _database
 
 
 if __name__ == '__main__':
     load_dotenv()
     strapi_url = os.getenv('STRAPI_URL')
+    strapi_token = os.getenv('STRAPI_TOKEN')
     token = os.getenv("TELEGRAM_TOKEN")
+    redis_host = os.getenv("DATABASE_HOST")
+    redis_port = os.getenv("DATABASE_PORT")
+    redis_password = os.getenv("DATABASE_PASSWORD")
     updater = Updater(token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
