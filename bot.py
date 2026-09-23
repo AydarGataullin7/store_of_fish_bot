@@ -1,20 +1,19 @@
 import os
 import redis
 from dotenv import load_dotenv
-import requests
 
 from telegram.ext import Filters, Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+import strapi_api
+
 _database = None
 strapi_url = None
 
+
 def start(update, context):
-    url = f'{strapi_url}/api/products'
-    headers = {"Authorization": f"Bearer {os.getenv('STRAPI_TOKEN')}"}
-    response = requests.get(url, headers=headers)
-    products = response.json()['data']
+    products = strapi_api.get_products(strapi_url)
     keyboard = []
     for product in products:
         button = InlineKeyboardButton(product['name'], callback_data=product['documentId'])
@@ -24,19 +23,15 @@ def start(update, context):
     update.effective_message.reply_text('Please choose', reply_markup=reply_markup)
     return "HANDLE_MENU"
 
+
 def handle_menu(update, context):
     document_id = update.callback_query.data
     if document_id == 'my_cart':
         return handle_cart(update, context)
-    url = f'{strapi_url}/api/products/{document_id}'
-    params = {'populate': 'picture'}
-    headers = {"Authorization": f"Bearer {os.getenv('STRAPI_TOKEN')}"}
-    response = requests.get(url, headers=headers, params=params)
-    product = response.json()['data']
+    product = strapi_api.get_product(strapi_url, document_id)
     picture_url = product['picture']['url']
     image_url = f'{strapi_url}{picture_url}'
-    image_response = requests.get(image_url)
-    image_bytes = image_response.content
+    image_bytes = strapi_api.get_image_bytes(image_url)
     update.callback_query.message.delete()
     keyboard = [
         [InlineKeyboardButton('Назад', callback_data='back')],
@@ -52,6 +47,7 @@ def handle_menu(update, context):
     )
     return "HANDLE_DESCRIPTION"
 
+
 def handle_description(update, context):
     callback_data = update.callback_query.data
     chat_id = update.callback_query.message.chat_id
@@ -60,50 +56,13 @@ def handle_description(update, context):
         start(update, context)
     elif callback_data.startswith('add_to_cart_'):
         product_document_id = callback_data.replace('add_to_cart_', '')
-        url = f'{strapi_url}/api/carts'
-        headers = {
-            "Authorization": f"Bearer {os.getenv('STRAPI_TOKEN')}",
-            "Content-Type": "application/json",
-        }
-        data = {
-            "data": {
-                "telegram_id": chat_id,
-            }
-        }
-        response = requests.get(url, headers=headers, params={'filters[telegram_id][$eq]': chat_id})
-        carts = response.json()['data']
-        if not carts:
-            response = requests.post(url, headers=headers, json=data)
-            cart = response.json()['data']
-            update.callback_query.answer()
-            update.callback_query.message.reply_text("Корзина создана")
-        else:
-            cart = carts[0]
-            update.callback_query.answer()
-            update.callback_query.message.reply_text("Корзина уже существует")
-        cart_document_id = cart['documentId']
-        cart_item_url = f'{strapi_url}/api/cart-items'
-        cart_item_data = {
-            "data": {
-            "quantity": 1,
-            "cart": cart_document_id,
-            "product": product_document_id,
-            }
-        }
-        response = requests.post(cart_item_url, headers=headers, json=cart_item_data)
+        cart = strapi_api.get_or_create_cart(strapi_url, chat_id)
+        strapi_api.add_to_cart(strapi_url, cart['documentId'], product_document_id)
+        update.callback_query.answer()
         update.callback_query.message.reply_text("Товар добавлен в корзину")
         return "HANDLE_DESCRIPTION"
-
     elif callback_data == 'my_cart':
-        url = f'{strapi_url}/api/carts'
-        headers = {"Authorization": f"Bearer {os.getenv('STRAPI_TOKEN')}"}
-        response = requests.get(url, headers=headers, params={'filters[telegram_id][$eq]': chat_id})
-        carts = response.json()['data']
-        cart_document_id = carts[0]['documentId']
-        url = f'{strapi_url}/api/carts/{cart_document_id}'
-        params = {'populate': 'cart_items.product'}
-        response = requests.get(url, headers=headers, params=params)
-        cart = response.json()['data']
+        cart = strapi_api.get_cart(strapi_url, chat_id)
         text = "Ваша корзина: \n\n"
         total = 0
         for item in cart['cart_items']:
@@ -149,6 +108,7 @@ def handle_users_reply(update, context):
     except Exception as err:
         print(err)
 
+
 def handle_cart(update, context):
     callback_data = update.callback_query.data
     chat_id = update.callback_query.message.chat_id
@@ -157,34 +117,21 @@ def handle_cart(update, context):
         update.callback_query.answer()
         update.callback_query.message.reply_text('Введите ваш email:')
         return "WAITING_EMAIL"
-
     elif callback_data == 'back_to_menu':
         update.callback_query.message.delete()
         start(update, context)
         return "HANDLE_MENU"
-
     elif callback_data.startswith('remove_'):
         cart_item_document_id = callback_data.replace('remove_', '')
-        url = f'{strapi_url}/api/cart-items/{cart_item_document_id}'
-        headers = {"Authorization": f"Bearer {os.getenv('STRAPI_TOKEN')}"}
-        requests.delete(url, headers=headers)
+        strapi_api.delete_cart_item(strapi_url, cart_item_document_id)
         update.callback_query.message.delete()
 
-    url = f'{strapi_url}/api/carts'
-    headers = {"Authorization": f"Bearer {os.getenv('STRAPI_TOKEN')}"}
-    response = requests.get(url, headers=headers, params={'filters[telegram_id][$eq]': chat_id})
-    carts = response.json()['data']
+    cart = strapi_api.get_cart(strapi_url, chat_id)
 
-    if not carts:
+    if not cart or not cart['cart_items']:
         update.callback_query.answer()
         update.callback_query.message.reply_text('Корзина пуста')
         return "HANDLE_CART"
-
-    cart_document_id = carts[0]['documentId']
-    url = f'{strapi_url}/api/carts/{cart_document_id}'
-    params = {'populate': 'cart_items.product'}
-    response = requests.get(url, headers=headers, params=params)
-    cart = response.json()['data']
 
     text = "Ваша корзина:\n\n"
     keyboard = []
@@ -215,24 +162,15 @@ def handle_cart(update, context):
 
     return "HANDLE_CART"
 
+
 def handle_email(update, context):
     email = update.message.text
     chat_id = update.message.chat_id
-    url = f'{strapi_url}/api/clients'
-    headers = {
-        "Authorization": f"Bearer {os.getenv('STRAPI_TOKEN')}",
-        "Content-Type": "application/json",
-    }
-    data = {
-        "data": {
-            "email": email,
-            "telegram_id": chat_id,
-        }
-    }
-    response = requests.post(url, headers=headers, json=data)
+    strapi_api.create_client(strapi_url, email, chat_id)
     print("EMAIL:", email)
     update.message.reply_text(f'Спасибо! Ваш email: {email}')
     return "START"
+
 
 def get_database_connection():
     global _database
