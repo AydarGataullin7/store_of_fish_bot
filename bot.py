@@ -1,5 +1,4 @@
 import os
-import logging
 import redis
 from dotenv import load_dotenv
 import requests
@@ -119,16 +118,6 @@ def handle_description(update, context):
         return "HANDLE_CART"
     return "HANDLE_MENU"
 
-def button(update, context):
-    query = update.callback_query
-    query.answer()
-    query.edit_message_text(text=f'Selected option: {query.data}')
-
-def echo(update, context):
-    users_reply = update.message.text
-    update.message.reply_text(users_reply)
-    return "ECHO"
-
 
 def handle_users_reply(update, context):
     db = get_database_connection()
@@ -147,7 +136,6 @@ def handle_users_reply(update, context):
 
     states_functions = {
         'START': start,
-        'ECHO': echo,
         'HANDLE_MENU': handle_menu,
         'HANDLE_DESCRIPTION': handle_description,
         'HANDLE_CART': handle_cart,
