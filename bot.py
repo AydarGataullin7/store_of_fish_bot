@@ -171,7 +171,6 @@ def handle_email(update, context):
     email = update.message.text
     chat_id = update.message.chat_id
     strapi_api.create_client(strapi_url, strapi_token, email, chat_id)
-    print("EMAIL:", email)
     update.message.reply_text(f'Спасибо! Ваш email: {email}')
     return "START"
 
