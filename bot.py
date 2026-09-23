@@ -184,12 +184,12 @@ def get_database_connection():
 
 if __name__ == '__main__':
     load_dotenv()
-    strapi_url = os.getenv('STRAPI_URL')
-    strapi_token = os.getenv('STRAPI_TOKEN')
-    telegram_token = os.getenv("TELEGRAM_TOKEN")
-    redis_host = os.getenv("DATABASE_HOST")
-    redis_port = os.getenv("DATABASE_PORT")
-    redis_password = os.getenv("DATABASE_PASSWORD")
+    telegram_token = os.environ['TELEGRAM_TOKEN']
+    strapi_url = os.environ['STRAPI_URL']
+    strapi_token = os.environ['STRAPI_TOKEN']
+    redis_host = os.environ['DATABASE_HOST']
+    redis_port = os.environ['DATABASE_PORT']
+    redis_password = os.getenv('DATABASE_PASSWORD')
     updater = Updater(telegram_token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
