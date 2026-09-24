@@ -8,16 +8,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import strapi_api
 
-_database = None
-strapi_url = None
-strapi_token = None
-redis_host = None
-redis_port = None
-redis_password = None
-
 
 def start(update, context):
-    product_list = strapi_api.get_products(strapi_url, strapi_token)
+    config = context.bot_data['config']
+    product_list = strapi_api.get_products(config['strapi_url'], config['strapi_token'])
     keyboard = []
     for product in product_list:
         button = InlineKeyboardButton(product['name'], callback_data=product['documentId'])
@@ -29,12 +23,13 @@ def start(update, context):
 
 
 def handle_menu(update, context):
+    config = context.bot_data['config']
     document_id = update.callback_query.data
     if document_id == 'my_cart':
         return handle_cart(update, context)
-    product = strapi_api.get_product(strapi_url, strapi_token, document_id)
+    product = strapi_api.get_product(config['strapi_url'], config['strapi_token'], document_id)
     picture_url = product['picture']['url']
-    image_url = f'{strapi_url}{picture_url}'
+    image_url = f"{config['strapi_url']}{picture_url}"
     image_bytes = strapi_api.get_image_bytes(image_url)
     update.callback_query.message.delete()
     keyboard = [
@@ -53,6 +48,7 @@ def handle_menu(update, context):
 
 
 def handle_description(update, context):
+    config = context.bot_data['config']
     callback_data = update.callback_query.data
     chat_id = update.callback_query.message.chat_id
     if callback_data == 'back':
@@ -60,13 +56,13 @@ def handle_description(update, context):
         start(update, context)
     elif callback_data.startswith('add_to_cart_'):
         product_document_id = callback_data.replace('add_to_cart_', '')
-        cart = strapi_api.get_or_create_cart(strapi_url, strapi_token, chat_id)
-        strapi_api.add_to_cart(strapi_url, strapi_token, cart['documentId'], product_document_id)
+        cart = strapi_api.get_or_create_cart(config['strapi_url'], config['strapi_token'], chat_id)
+        strapi_api.add_to_cart(config['strapi_url'], config['strapi_token'], cart['documentId'], product_document_id)
         update.callback_query.answer()
         update.callback_query.message.reply_text("Товар добавлен в корзину")
         return "HANDLE_DESCRIPTION"
     elif callback_data == 'my_cart':
-        cart = strapi_api.get_cart(strapi_url, strapi_token, chat_id)
+        cart = strapi_api.get_cart(config['strapi_url'], config['strapi_token'], chat_id)
         text = "Ваша корзина: \n\n"
         total = 0
         for cart_item in cart['cart_items']:
@@ -84,7 +80,8 @@ def handle_description(update, context):
 
 
 def handle_users_reply(update, context):
-    redis_conn = get_database_connection()
+    config = context.bot_data['config']
+    redis_conn = get_database_connection(config)
     if update.message:
         user_reply = update.message.text
         chat_id = update.message.chat_id
@@ -114,6 +111,7 @@ def handle_users_reply(update, context):
 
 
 def handle_cart(update, context):
+    config = context.bot_data['config']
     callback_data = update.callback_query.data
     chat_id = update.callback_query.message.chat_id
 
@@ -127,10 +125,10 @@ def handle_cart(update, context):
         return "HANDLE_MENU"
     elif callback_data.startswith('remove_'):
         cart_item_document_id = callback_data.replace('remove_', '')
-        strapi_api.delete_cart_item(strapi_url, strapi_token, cart_item_document_id)
+        strapi_api.delete_cart_item(config['strapi_url'], config['strapi_token'], cart_item_document_id)
         update.callback_query.message.delete()
 
-    cart = strapi_api.get_cart(strapi_url, strapi_token, chat_id)
+    cart = strapi_api.get_cart(config['strapi_url'], config['strapi_token'], chat_id)
 
     if not cart or not cart['cart_items']:
         update.callback_query.answer()
@@ -168,32 +166,41 @@ def handle_cart(update, context):
 
 
 def handle_email(update, context):
+    config = context.bot_data['config']
     email = update.message.text
     chat_id = update.message.chat_id
-    strapi_api.create_client(strapi_url, strapi_token, email, chat_id)
+    strapi_api.create_client(config['strapi_url'], config['strapi_token'], email, chat_id)
     update.message.reply_text(f'Спасибо! Ваш email: {email}')
     return "START"
 
 
-def get_database_connection():
-    global _database
-    if _database is None:
-        _database = redis.Redis(host=redis_host, port=redis_port, password=redis_password)
-    return _database
+def get_database_connection(config):
+    return redis.Redis(
+        host=config['redis_host'],
+        port=config['redis_port'],
+        password=config['redis_password'],
+    )
 
 
-if __name__ == '__main__':
+def main():
     load_dotenv()
-    telegram_token = os.environ['TELEGRAM_TOKEN']
-    strapi_url = os.environ['STRAPI_URL']
-    strapi_token = os.environ['STRAPI_TOKEN']
-    redis_host = os.environ['DATABASE_HOST']
-    redis_port = os.environ['DATABASE_PORT']
-    redis_password = os.getenv('DATABASE_PASSWORD')
-    updater = Updater(telegram_token)
+    config = {
+        'telegram_token': os.environ['TELEGRAM_TOKEN'],
+        'strapi_url': os.environ['STRAPI_URL'],
+        'strapi_token': os.environ['STRAPI_TOKEN'],
+        'redis_host': os.environ['DATABASE_HOST'],
+        'redis_port': os.environ['DATABASE_PORT'],
+        'redis_password': os.getenv('DATABASE_PASSWORD'),
+    }
+    updater = Updater(config['telegram_token'])
+    updater.dispatcher.bot_data['config'] = config
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
     dispatcher.add_handler(MessageHandler(Filters.text, handle_users_reply))
     dispatcher.add_handler(CommandHandler('start', handle_users_reply))
     updater.start_polling()
     updater.idle()
+
+
+if __name__ == '__main__':
+    main()
